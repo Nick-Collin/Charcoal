@@ -1,5 +1,4 @@
-#ifndef LEXER_H
-#define LEXER_H
+#pragma once
 
 #include "tokenlist.h"
 
@@ -11,4 +10,3 @@ typedef struct {
 
 TokenList tokenize(const char *source, int source_size);
 
-#endif

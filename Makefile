@@ -18,8 +18,7 @@ SRC = $(wildcard $(SRC_DIR)/*.c)
 OBJ = $(patsubst $(SRC_DIR)/%.c, $(BUILD)/%.o, $(SRC))
 
 # Output binary
-TARGET = compiler
-
+TARGET = Charcoal
 # Default rule
 all: $(TARGET)
 
@@ -39,4 +38,4 @@ clean:
 	rm -rf $(BUILD) $(TARGET)
 
 run: $(TARGET)
-	./$(TARGET) test.txt
+	./$(TARGET) test.chr

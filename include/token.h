@@ -1,6 +1,4 @@
-#ifndef TOKEN_H
-#define TOKEN_H
-
+#pragma once
 typedef enum {
     _return,
     int_literal,
@@ -15,5 +13,3 @@ typedef struct {
 
 TokenType get_type(char *string);
 const char* token_type_to_string(TokenType type);
-
-#endif

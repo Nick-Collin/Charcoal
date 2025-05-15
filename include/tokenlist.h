@@ -1,5 +1,4 @@
-#ifndef TOKENLIST_H
-#define TOKENLIST_H
+#pragma once
 
 #include "token.h"
 
@@ -11,5 +10,3 @@ typedef struct {
 
 TokenList init_token_list(int initial_capacity);
 void add_token(TokenList *list, Token token);
-
-#endif
