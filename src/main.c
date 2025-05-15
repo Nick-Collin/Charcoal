@@ -21,13 +21,26 @@ typedef struct {
     int capacity;  // allocated size
 } TokenList;
 
-
+typedef struct 
+{
+    const char *start;
+    const char *current;
+    int length;
+}Lexer;
 
 TokenList tokenize(const char *source, int source_size);
 TokenList init_token_list(int initial_capacity);
 void add_token(TokenList *list, Token token);
 int is_alpha(char c);
-TokenType get_type(char* string);
+int is_at_end(Lexer *lexer);
+char advance(Lexer *lexer);
+char peek(Lexer *lexer);
+void skip_whitespace(Lexer *lexer);
+Token scan_token(Lexer *lexer);
+Token scan_identifier(Lexer *lexer, char first_char);
+Token scan_number(Lexer *lexer, char first_char);
+TokenType get_type(char *string);
+const char* token_type_to_string(TokenType type);
 
 
 int main(int argc, char *argv[]){
@@ -55,12 +68,13 @@ int main(int argc, char *argv[]){
     size_t read_size = fread(buffer, 1, fsize, file);
     buffer[read_size] = '\0';  // Null-terminate the buffer
 
-    printf("%s", buffer);
+    printf("File Content:\n%s\n", buffer);
 
     TokenList tokens = tokenize(buffer, read_size);
 
     free(buffer);
     for (int i = 0; i < tokens.count; i++) {
+        printf("token: %d, type: %s, lexeme: %s\n", i, token_type_to_string(tokens.tokens[i].type), tokens.tokens[i].lexeme);
         free(tokens.tokens[i].lexeme);
     }
     free(tokens.tokens);  
@@ -68,58 +82,49 @@ int main(int argc, char *argv[]){
     return 0;
 }
 
-TokenList tokenize(const char *source, int source_size){
-    char current;
-    TokenList list = init_token_list(1);
-    for (int i=0; i < source_size; i++){
-        current = source[i];
-        if (is_alpha(current)){
-            int capacity = 16;
-            char *buffer = malloc(capacity);  // start with 16 chars
-            if (!buffer){
-                printf("Out of memory!");
-                exit(1);
-            }
-            int idx = 0;
-            
-            while (i < source_size && is_alpha(current)) {
-                if (idx >= capacity - 1) {  // -1 for null terminator
-                    capacity *= 2;
-                    buffer = realloc(buffer, capacity);
-                    if (!buffer){
-                        free(buffer);
-                        printf("Out of memory!");
-                        exit(1);
-                    }
-                }
-                buffer[idx++] = current;
-                current = source[++i];  // advance i and get next char
-            }
-            current = source[--i];
-            buffer[idx] = '\0'; // null-terminate the string
+TokenList tokenize(const char *source, int source_size) {
+    TokenList list = init_token_list(8);
 
-            Token token= {
-                            .type = get_type(buffer),
-                            .lexeme = buffer
-                         };
-            add_token(&list, token);
-            }
-        }
+    Lexer lexer = {
+        .start = source,
+        .current = source,
+        .length = source_size
+    };
+
+    while (!is_at_end(&lexer)) {
+        skip_whitespace(&lexer);
+        if (is_at_end(&lexer)) break;
+
+        lexer.start = lexer.current;
+        Token token = scan_token(&lexer);
+        add_token(&list, token);
+    }
+
     return list;
 }
 
+int is_at_end(Lexer *lexer){
+    return *(lexer->current) == '\0';
+}
+
+char advance(Lexer *lexer) {
+    return *(lexer->current++);
+}
+
+char peek(Lexer *lexer) {
+    return *(lexer->current);
+}
+
 int is_alpha(char c){
-    if (c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'){
-        return 1;
-    }
-    return 0;
+   return (c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z');
 }
 
 int is_digit(char c){
-    if (c >= 0 && c <= 9){
-        return 1;
-    }
-    return 0;
+    return c >= '0' && c <= '9';
+}
+
+int is_alnum(char c){
+    return is_alpha(c) || is_digit(c);
 }
 
 TokenList init_token_list(int initial_capacity) {
@@ -142,8 +147,101 @@ void add_token(TokenList *list, Token token) {
     list->tokens[list->count++] = token;
 }
 
+Token scan_token(Lexer *lexer) {
+    char c = advance(lexer);
+
+    if (is_alpha(c)) {
+        return scan_identifier(lexer, c);
+    }
+    if (is_digit(c)) {
+        return scan_number(lexer, c);
+    }
+    if (c == ';') {
+        Token token = {.type = semicolon, .lexeme = strdup(";")};
+        return token;
+    }
+
+    // Fallback
+    char lex[2];
+    lex[0] = c;
+    lex[1] = '\0';
+    Token token = {.type = unknown, .lexeme = strdup(lex)}; // heap-allocated    
+    return token;
+}
+
+Token scan_identifier(Lexer *lexer, char first_char) {
+    int capacity = 16;
+    char *buffer = malloc(capacity);
+    if (!buffer){
+        printf("Out of memory!");
+        exit(1);
+    }
+    int length = 0;
+    buffer[length++] = first_char;
+
+    while (is_alnum(peek(lexer))) {
+        if (length >= capacity - 1) {
+            capacity *= 2;
+            buffer = realloc(buffer, capacity);
+            if (!buffer){
+                printf("Out of memory!");
+                exit(1);
+            }
+        }
+        buffer[length++] = advance(lexer);
+    }
+    buffer[length] = '\0';
+
+    TokenType type = get_type(buffer);
+    Token token = {.type = type, .lexeme = buffer};
+    return token;
+}
+
+Token scan_number(Lexer *lexer, char first_char) {
+    int capacity = 4;
+    char *buffer = malloc(capacity);
+    if (!buffer){
+        printf("Out of memory!");
+        exit(1);
+    }
+    int length = 0;
+    buffer[length++] = first_char;
+
+    while (is_digit(peek(lexer))) {
+        if (length >= capacity - 1) {
+            capacity *= 2;
+            buffer = realloc(buffer, capacity);
+            if (!buffer){
+                printf("Out of memory!");
+                exit(1);
+            }
+        }
+        buffer[length++] = advance(lexer);
+    }
+    buffer[length] = '\0';
+
+    Token token = {.type = int_literal, .lexeme = buffer};
+    return token;
+}
+
 TokenType get_type(char *string){
-    if (strcmp(string, "return") == 0) {printf("found return!/n"); return _return;}
+    if (strcmp(string, "return") == 0) return _return;
     return unknown;
 }
 
+void skip_whitespace(Lexer *lexer) {
+    while (peek(lexer) == ' ' || peek(lexer) == '\t' || peek(lexer) == '\n' || peek(lexer) == '\r') {
+        advance(lexer);
+    }
+}
+
+
+const char* token_type_to_string(TokenType type) {
+    switch (type) {
+        case _return: return "return";
+        case int_literal: return "int_literal";
+        case semicolon: return "semicolon";
+        case unknown: return "unknown";
+        default: return "invalid";
+    }
+}
